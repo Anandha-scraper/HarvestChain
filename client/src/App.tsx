@@ -138,6 +138,16 @@ function App() {
     // In real implementation, this would update the backend
   };
 
+  const handlePriceUpdateRequest = (request: any) => {
+    // Simulate sending price update request to farmer
+    console.log('Price update request sent to farmer:', request);
+    toast({
+      title: "Confirmation Request Sent",
+      description: `Price update request sent to ${request.farmerName}`,
+    });
+    // In real implementation, this would notify the farmer through push notifications or SMS
+  };
+
   const renderContent = () => {
     switch (appState) {
       case "userSelect":
@@ -174,6 +184,7 @@ function App() {
             <QRScanner
               userType={userType as "retailer" | "consumer"}
               onStatusUpdate={handleStatusUpdate}
+              onPriceUpdateRequest={handlePriceUpdateRequest}
             />
             <div className="fixed bottom-4 left-4">
               <button
