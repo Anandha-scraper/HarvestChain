@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Square, Upload, Download, Plus, Minus } from "lucide-react";
+import { ArrowLeft, Play, Square, Upload, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface QRGeneratorProps {
@@ -205,27 +205,22 @@ export default function QRGenerator({ farmerName, onBack, onUploadToIPFS }: QRGe
             )}
           </div>
 
-          <div className="flex items-center space-x-4">
-            <Label>Number of QR Codes:</Label>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setQrCount(Math.max(1, qrCount - 1))}
-                data-testid="button-decrease-count"
-              >
-                <Minus className="w-4 h-4" />
-              </Button>
-              <span className="w-12 text-center font-medium" data-testid="text-qr-count">{qrCount}</span>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setQrCount(qrCount + 1)}
-                data-testid="button-increase-count"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="qr-count">Number of QR Codes</Label>
+            <Input
+              id="qr-count"
+              type="number"
+              min="1"
+              max="100"
+              placeholder="Enter number of QR codes"
+              value={qrCount.toString()}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 1;
+                setQrCount(Math.max(1, Math.min(100, value)));
+              }}
+              className="w-full"
+              data-testid="input-qr-count"
+            />
           </div>
         </CardContent>
       </Card>
