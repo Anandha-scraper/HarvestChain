@@ -5,8 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Camera, QrCode, MapPin, DollarSign, Upload, Scan, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Camera, QrCode, MapPin, DollarSign, Upload, Scan, Clock, CheckCircle, XCircle, TrendingUp, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface PriceHistory {
+  stage: string;
+  price: string;
+  date: string;
+  location?: string;
+  updatedBy: string;
+}
 
 interface ScannedCrop {
   id: string;
@@ -16,6 +24,8 @@ interface ScannedCrop {
   giTag?: string;
   quantity: string;
   currentStatus: string;
+  priceHistory: PriceHistory[];
+  currentPrice?: string;
 }
 
 interface PriceUpdateRequest {
@@ -56,7 +66,31 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
     farmerLocation: "Mysore, Karnataka",
     giTag: "Basmati Rice - GI Tag",
     quantity: "5kg",
-    currentStatus: "with_farmer"
+    currentStatus: "with_farmer",
+    currentPrice: "45",
+    priceHistory: [
+      {
+        stage: "Farmer",
+        price: "45",
+        date: "2025-09-20",
+        location: "Mysore, Karnataka",
+        updatedBy: "Ravi Kumar"
+      },
+      {
+        stage: "Distributer/Retailer",
+        price: "65",
+        date: "2025-09-23",
+        location: "Bangalore, Karnataka",
+        updatedBy: "SuperMart Wholesale"
+      },
+      {
+        stage: "Retail Store",
+        price: "85",
+        date: "2025-09-25",
+        location: "MG Road, Bangalore",
+        updatedBy: "Fresh Grocers"
+      }
+    ]
   };
 
   const startScanning = () => {
@@ -123,6 +157,31 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
       return;
     }
 
+    // For consumer updates with price, add to price history
+    if (userType === "consumer" && newPrice && newPrice.trim() !== "") {
+      const newPriceEntry: PriceHistory = {
+        stage: "Consumer",
+        price: newPrice,
+        date: new Date().toISOString().split('T')[0],
+        location: location || "Consumer location",
+        updatedBy: "Consumer"
+      };
+      
+      // Update price history locally
+      setScannedData(prev => prev ? {
+        ...prev,
+        currentPrice: newPrice,
+        priceHistory: [...prev.priceHistory, newPriceEntry]
+      } : null);
+      
+      toast({
+        title: "Consumer Price Added",
+        description: `Added consumer price: ₹${newPrice}`,
+      });
+      
+      console.log('Consumer price added:', { qrCode: scannedData.id, newStatus, newPrice, location, priceHistory: newPriceEntry });
+    }
+    
     // For status updates without price or consumer updates, proceed normally
     onStatusUpdate(scannedData.id, newStatus, newPrice || undefined);
     
@@ -290,6 +349,85 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
         </Card>
       )}
 
+      {/* Price History */}
+      {scannedData && scannedData.priceHistory && scannedData.priceHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <History className="w-5 h-5" />
+              <span>Price History</span>
+            </CardTitle>
+            <CardDescription>
+              Track pricing across the entire supply chain
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {scannedData.priceHistory.map((entry, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate"
+                  data-testid={`price-entry-${index}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <Badge 
+                        variant={entry.stage === "Farmer" ? "default" : 
+                                entry.stage === "Consumer" ? "secondary" : "outline"}
+                      >
+                        {entry.stage}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">{entry.date}</span>
+                    </div>
+                    <p className="font-medium text-sm mt-1" data-testid={`text-updated-by-${index}`}>
+                      {entry.updatedBy}
+                    </p>
+                    {entry.location && (
+                      <p className="text-sm text-muted-foreground flex items-center mt-1">
+                        <MapPin className="w-3 h-3 mr-1" />
+                        {entry.location}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center space-x-1">
+                      <TrendingUp className="w-4 h-4 text-green-600" />
+                      <span className="text-xl font-bold text-primary" data-testid={`text-price-${index}`}>
+                        ₹{entry.price}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">per {scannedData.quantity}</p>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Price Summary */}
+              <div className="bg-muted/50 rounded-lg p-4 mt-4">
+                <h4 className="font-medium mb-2">Price Summary</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Farm Price:</span>
+                    <span className="font-medium ml-2">₹{scannedData.priceHistory.find(p => p.stage === "Farmer")?.price || "N/A"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Current Price:</span>
+                    <span className="font-medium ml-2">₹{scannedData.currentPrice || scannedData.priceHistory[scannedData.priceHistory.length - 1]?.price || "N/A"}</span>
+                  </div>
+                  {scannedData.priceHistory.find(p => p.stage === "Consumer") && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">You Paid:</span>
+                      <span className="font-medium ml-2 text-green-600">
+                        ₹{scannedData.priceHistory.find(p => p.stage === "Consumer")?.price}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Update Status */}
       {scannedData && (
         <Card>
@@ -317,15 +455,17 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
                 </Select>
               </div>
 
-              {userType === "retailer" && (
+              {(userType === "retailer" || userType === "consumer") && (
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price (Optional)</Label>
+                  <Label htmlFor="price">
+                    {userType === "consumer" ? "Price You Paid" : "Price"} (Optional)
+                  </Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="price"
                       type="number"
-                      placeholder="Enter price"
+                      placeholder={userType === "consumer" ? "Enter price you paid" : "Enter price"}
                       value={newPrice}
                       onChange={(e) => setNewPrice(e.target.value)}
                       className="pl-10"
