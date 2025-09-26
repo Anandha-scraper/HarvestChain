@@ -117,7 +117,7 @@ export default function QRScanner({ userType, onStatusUpdate }: QRScannerProps) 
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-medium">QR Scanner</h1>
         <p className="text-muted-foreground">
-          Scan QR codes to track crop journey ({userType})
+          Scan QR codes to track crop journey ({userType === "retailer" ? "Distributer / Retailer" : userType})
         </p>
       </div>
 

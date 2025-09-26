@@ -19,7 +19,7 @@ export default function UserTypeSelector({ onSelectUserType }: UserTypeSelectorP
     },
     {
       type: "retailer" as const,
-      title: "Retailer", 
+      title: "Distributer / Retailer", 
       description: "Scan QR codes and update crop prices",
       icon: Scan,
       color: "bg-chart-2",
