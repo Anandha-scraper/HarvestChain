@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Camera, QrCode, MapPin, DollarSign, Upload, Scan } from "lucide-react";
+import { Camera, QrCode, MapPin, DollarSign, Upload, Scan, Clock, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ScannedCrop {
@@ -18,17 +18,31 @@ interface ScannedCrop {
   currentStatus: string;
 }
 
+interface PriceUpdateRequest {
+  id: string;
+  qrCode: string;
+  cropType: string;
+  farmerName: string;
+  currentPrice?: string;
+  proposedPrice: string;
+  requestedBy: string;
+  status: "pending" | "approved" | "rejected";
+  timestamp: Date;
+}
+
 interface QRScannerProps {
   userType: "retailer" | "consumer";
   onStatusUpdate: (qrCode: string, newStatus: string, price?: string) => void;
+  onPriceUpdateRequest?: (request: PriceUpdateRequest) => void;
 }
 
-export default function QRScanner({ userType, onStatusUpdate }: QRScannerProps) {
+export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateRequest }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedCrop | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const [newStatus, setNewStatus] = useState("");
   const [location, setLocation] = useState("");
+  const [pendingPriceUpdate, setPendingPriceUpdate] = useState<PriceUpdateRequest | null>(null);
   const { toast } = useToast();
 
   const statusOptions = userType === "retailer" 
@@ -82,6 +96,34 @@ export default function QRScanner({ userType, onStatusUpdate }: QRScannerProps) 
       return;
     }
 
+    // If retailer is updating price, require farmer confirmation
+    if (userType === "retailer" && newPrice && newPrice.trim() !== "") {
+      const priceUpdateRequest: PriceUpdateRequest = {
+        id: `price-req-${Date.now()}`,
+        qrCode: scannedData.id,
+        cropType: scannedData.cropType,
+        farmerName: scannedData.farmerName,
+        currentPrice: "Previous price", // In real app, get from scannedData
+        proposedPrice: newPrice,
+        requestedBy: "Distributer/Retailer",
+        status: "pending",
+        timestamp: new Date()
+      };
+      
+      setPendingPriceUpdate(priceUpdateRequest);
+      onPriceUpdateRequest?.(priceUpdateRequest);
+      
+      toast({
+        title: "Price Update Requested",
+        description: `Farmer confirmation required for price update to ₹${newPrice}`,
+        variant: "default",
+      });
+      
+      console.log('Price update request sent:', priceUpdateRequest);
+      return;
+    }
+
+    // For status updates without price or consumer updates, proceed normally
     onStatusUpdate(scannedData.id, newStatus, newPrice || undefined);
     
     toast({
@@ -95,6 +137,42 @@ export default function QRScanner({ userType, onStatusUpdate }: QRScannerProps) 
     setNewPrice("");
     
     console.log('Status update:', { qrCode: scannedData.id, newStatus, newPrice, location });
+  };
+
+  const handlePriceConfirmationResponse = (approved: boolean) => {
+    if (!pendingPriceUpdate) return;
+
+    if (approved) {
+      // Simulate farmer approval and IPFS upload
+      onStatusUpdate(pendingPriceUpdate.qrCode, newStatus || "price_updated", pendingPriceUpdate.proposedPrice);
+      
+      toast({
+        title: "Price Update Approved",
+        description: `Farmer approved price update. Uploading to IPFS...`,
+      });
+      
+      // Simulate IPFS upload after approval
+      setTimeout(() => {
+        toast({
+          title: "IPFS Upload Complete",
+          description: `Price update (₹${pendingPriceUpdate.proposedPrice}) uploaded to IPFS successfully`,
+        });
+      }, 2000);
+      
+      // Update local state
+      setScannedData(prev => prev ? { ...prev, currentStatus: "price_updated" } : null);
+      setNewStatus("");
+      setNewPrice("");
+    } else {
+      toast({
+        title: "Price Update Rejected",
+        description: "Farmer rejected the price update request",
+        variant: "destructive",
+      });
+    }
+    
+    setPendingPriceUpdate(null);
+    console.log('Price confirmation response:', { approved, request: pendingPriceUpdate });
   };
 
   const getStatusColor = (status: string) => {
@@ -273,10 +351,82 @@ export default function QRScanner({ userType, onStatusUpdate }: QRScannerProps) 
               </div>
             </div>
 
-            <Button onClick={handleStatusUpdate} className="w-full" data-testid="button-update-status">
+            <Button 
+              onClick={handleStatusUpdate} 
+              className="w-full" 
+              data-testid="button-update-status"
+              disabled={!!pendingPriceUpdate}
+            >
               <Upload className="w-4 h-4 mr-2" />
-              Update Status
+              {pendingPriceUpdate ? "Waiting for Farmer Confirmation" : "Update Status"}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Price Update Confirmation */}
+      {pendingPriceUpdate && (
+        <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-yellow-800 dark:text-yellow-200">
+              <Clock className="w-5 h-5" />
+              <span>Farmer Confirmation Required</span>
+            </CardTitle>
+            <CardDescription>
+              Waiting for farmer approval for price update
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">Crop</Label>
+                <p className="font-medium">{pendingPriceUpdate.cropType}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Farmer</Label>
+                <p className="font-medium">{pendingPriceUpdate.farmerName}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Current Price</Label>
+                <p className="font-medium">{pendingPriceUpdate.currentPrice || "Not set"}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Proposed Price</Label>
+                <p className="font-medium text-primary">₹{pendingPriceUpdate.proposedPrice}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span>Requested: {pendingPriceUpdate.timestamp.toLocaleString()}</span>
+            </div>
+
+            {/* Simulate farmer response buttons for demo */}
+            <div className="border-t pt-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                Simulate farmer response (for demo purposes):
+              </p>
+              <div className="flex space-x-2">
+                <Button 
+                  size="sm" 
+                  variant="default"
+                  onClick={() => handlePriceConfirmationResponse(true)}
+                  data-testid="button-farmer-approve"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Farmer Approves
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  onClick={() => handlePriceConfirmationResponse(false)}
+                  data-testid="button-farmer-reject"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Farmer Rejects
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
