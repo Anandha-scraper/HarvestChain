@@ -28,11 +28,11 @@ export default function FarmerDashboard({ farmer, onGenerateQR, onViewHistory, o
   return (
     <div className="min-h-screen bg-background p-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-medium text-foreground">Dashboard</h1>
+      <div className="flex items-center justify-start gap-3">
         <Button variant="outline" size="sm" onClick={onLogout} data-testid="button-logout">
           Logout
         </Button>
+        <h1 className="text-2xl font-medium text-foreground">Dashboard</h1>
       </div>
 
       {/* Farmer Profile Card */}

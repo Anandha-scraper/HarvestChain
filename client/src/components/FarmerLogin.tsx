@@ -8,10 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 
 interface FarmerLoginProps {
   onLogin: (phoneNumber: string, passcode: string) => void;
+  onRegister?: () => void;
   isLoading?: boolean;
 }
 
-export default function FarmerLogin({ onLogin, isLoading = false }: FarmerLoginProps) {
+export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: FarmerLoginProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [passcode, setPasscode] = useState("");
   const { toast } = useToast();
@@ -107,6 +108,12 @@ export default function FarmerLogin({ onLogin, isLoading = false }: FarmerLoginP
               <div>Phone: 9876543210, Passcode: 1234</div>
               <div>Phone: 9876543211, Passcode: 5678</div>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <Button type="button" variant="outline" className="w-full" onClick={onRegister} data-testid="button-register">
+              Register
+            </Button>
           </div>
         </CardContent>
       </Card>

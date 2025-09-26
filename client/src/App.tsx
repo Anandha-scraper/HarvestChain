@@ -6,13 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import UserTypeSelector from "@/components/UserTypeSelector";
 import FarmerLogin from "@/components/FarmerLogin";
 import FarmerDashboard from "@/components/FarmerDashboard";
+import FarmerRegister from "@/components/FarmerRegister";
 import QRGenerator from "@/components/QRGenerator";
 import QRScanner from "@/components/QRScanner";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
 
 type UserType = "farmer" | "retailer" | "consumer" | null;
-type AppState = "userSelect" | "farmerLogin" | "farmerDashboard" | "qrGenerator" | "qrScanner";
+type AppState = "userSelect" | "farmerLogin" | "farmerRegister" | "farmerDashboard" | "qrGenerator" | "qrScanner";
 
 interface Farmer {
   id: string;
@@ -88,6 +89,17 @@ function App() {
     }
   };
 
+  const handleGoToRegister = () => {
+    setAppState("farmerRegister");
+  };
+
+  const handleRegistered = (farmer: Farmer) => {
+    setCurrentFarmer(farmer);
+    setUserType("farmer");
+    setAppState("farmerDashboard");
+    toast({ title: "Welcome", description: `Account created for ${farmer.name}` });
+  };
+
   const handleGenerateQR = () => {
     setAppState("qrGenerator");
   };
@@ -154,7 +166,24 @@ function App() {
         return <UserTypeSelector onSelectUserType={handleUserTypeSelect} />;
       
       case "farmerLogin":
-        return <FarmerLogin onLogin={handleFarmerLogin} />;
+        return <FarmerLogin onLogin={handleFarmerLogin} onRegister={handleGoToRegister} />;
+
+      case "farmerRegister":
+        return (
+          <FarmerRegister
+            onBack={() => setAppState("farmerLogin")}
+            onRegistered={(data) =>
+              handleRegistered({
+                id: "farmer-new",
+                name: data.name,
+                phoneNumber: data.phoneNumber,
+                aadharNumber: data.aadharNumber,
+                place: "",
+                cropsGrown: data.cropsGrown,
+              })
+            }
+          />
+        );
       
       case "farmerDashboard":
         return currentFarmer ? (
@@ -178,15 +207,12 @@ function App() {
       case "qrScanner":
         return (
           <div className="relative">
-            <div className="absolute top-4 right-4 z-10">
-              <ThemeToggle />
-            </div>
             <QRScanner
               userType={userType as "retailer" | "consumer"}
               onStatusUpdate={handleStatusUpdate}
               onPriceUpdateRequest={handlePriceUpdateRequest}
             />
-            <div className="fixed bottom-4 left-4">
+            <div className="fixed top-4 left-4">
               <button
                 onClick={handleBack}
                 className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover-elevate"
@@ -207,12 +233,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <div className="relative">
-          {/* Theme toggle for farmer screens */}
-          {(appState === "farmerDashboard" || appState === "qrGenerator") && (
-            <div className="fixed top-4 right-4 z-50">
-              <ThemeToggle />
-            </div>
-          )}
+          {/* Global theme toggle visible on all screens */}
+          <div className="fixed top-4 right-4 z-50">
+            <ThemeToggle />
+          </div>
           
           {renderContent()}
         </div>

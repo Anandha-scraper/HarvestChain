@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Camera, QrCode, MapPin, DollarSign, Upload, Scan, Clock, CheckCircle, XCircle, TrendingUp, History } from "lucide-react";
+import { Camera, QrCode, MapPin, IndianRupee, Upload, Scan, Clock, CheckCircle, XCircle, TrendingUp, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PriceHistory {
@@ -128,6 +128,18 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
         variant: "destructive",
       });
       return;
+    }
+
+    // For retailer, require both price and location
+    if (userType === "retailer") {
+      if (!newPrice || newPrice.trim() === "" || !location || location.trim() === "") {
+        toast({
+          title: "Missing Details",
+          description: "Retailer must enter both price and location",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // If retailer is updating price, require farmer confirmation
@@ -458,16 +470,17 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
               {(userType === "retailer" || userType === "consumer") && (
                 <div className="space-y-2">
                   <Label htmlFor="price">
-                    {userType === "consumer" ? "Price You Paid" : "Price"} (Optional)
+                    {userType === "consumer" ? "Price You Paid (Optional)" : "Price"}
                   </Label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <IndianRupee className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="price"
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       placeholder={userType === "consumer" ? "Enter price you paid" : "Enter price"}
                       value={newPrice}
-                      onChange={(e) => setNewPrice(e.target.value)}
+                      onChange={(e) => setNewPrice(e.target.value.replace(/[^\d.]/g, ''))}
                       className="pl-10"
                       data-testid="input-price"
                     />
@@ -477,7 +490,7 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="location">Current Location (Optional)</Label>
+              <Label htmlFor="location">{userType === "consumer" ? "Current Location (Optional)" : "Current Location"}</Label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
