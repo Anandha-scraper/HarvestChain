@@ -89,31 +89,188 @@ app.use('/api', async (req, res, next) => {
   next();
 });
 
-// Register routes
-app.use('/api/farmers', async (req, res, next) => {
+// Farmer Schema
+const farmerSchema = new mongoose.Schema({
+  firebaseUid: { type: String, required: true, unique: true },
+  name: { type: String, required: true, trim: true },
+  phoneNumber: { type: String, required: true, unique: true },
+  passcode: { type: String, required: true, minlength: 4, maxlength: 4 },
+  aadharNumber: { type: String, required: true, unique: true },
+  location: { type: String, required: true, trim: true },
+  cropsGrown: [{ type: String, trim: true }],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, { timestamps: true, versionKey: false });
+
+const Farmer = mongoose.model('Farmer', farmerSchema);
+
+// Farmer routes
+app.post('/api/farmers/login', async (req, res) => {
   try {
-    const farmerRoutes = (await import('../server/routes/farmerRoutes')).default;
-    farmerRoutes(req, res, next);
-  } catch (error) {
-    console.error('Error loading farmer routes:', error);
+    const { phoneNumber, passcode } = req.body;
+    
+    if (!phoneNumber || !passcode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number and passcode are required'
+      });
+    }
+
+    const farmer = await Farmer.findOne({ 
+      phoneNumber: phoneNumber,
+      passcode: passcode 
+    });
+    
+    if (!farmer) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid phone number or passcode'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        id: farmer._id,
+        name: farmer.name,
+        phoneNumber: farmer.phoneNumber,
+        aadharNumber: farmer.aadharNumber,
+        location: farmer.location,
+        cropsGrown: farmer.cropsGrown
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in farmer login:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to load farmer routes',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: error.message || 'Failed to login farmer'
     });
   }
 });
 
-app.use('/api/admin', async (req, res, next) => {
+app.post('/api/farmers/create', async (req, res) => {
   try {
-    const adminRoutes = (await import('../server/routes/adminRoutes')).default;
-    adminRoutes(req, res, next);
-  } catch (error) {
-    console.error('Error loading admin routes:', error);
+    const farmerData = req.body;
+    
+    // Validate required fields
+    if (!farmerData.firebaseUid || !farmerData.name || !farmerData.phoneNumber || 
+        !farmerData.aadharNumber || !farmerData.location) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: firebaseUid, name, phoneNumber, aadharNumber, location'
+      });
+    }
+
+    // Check if farmer already exists
+    const existingFarmer = await Farmer.findOne({
+      $or: [
+        { firebaseUid: farmerData.firebaseUid },
+        { phoneNumber: farmerData.phoneNumber },
+        { aadharNumber: farmerData.aadharNumber }
+      ]
+    });
+
+    if (existingFarmer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Farmer already exists with this phone number, Aadhar, or Firebase UID'
+      });
+    }
+
+    const farmer = new Farmer(farmerData);
+    const savedFarmer = await farmer.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Farmer created successfully',
+      data: savedFarmer
+    });
+  } catch (error: any) {
+    console.error('Error creating farmer:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to create farmer'
+    });
+  }
+});
+
+app.put('/api/farmers/crops/:farmerId', async (req, res) => {
+  try {
+    const { farmerId } = req.params;
+    const { crops } = req.body;
+    
+    if (!crops || !Array.isArray(crops)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Crops array is required'
+      });
+    }
+    
+    const farmer = await Farmer.findByIdAndUpdate(
+      farmerId,
+      { 
+        cropsGrown: crops, 
+        updatedAt: new Date() 
+      },
+      { new: true, runValidators: true }
+    );
+    
+    if (!farmer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Farmer not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Farmer crops updated successfully',
+      data: farmer
+    });
+  } catch (error: any) {
+    console.error('Error updating farmer crops:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update farmer crops'
+    });
+  }
+});
+
+// Admin routes
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required'
+      });
+    }
+
+    // Simple admin check - you can make this more secure later
+    if (username === 'admin' && password === 'admin123') {
+      res.json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          id: 'admin',
+          username: 'admin',
+          role: 'admin'
+        }
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+  } catch (error: any) {
+    console.error('Error in admin login:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to load admin routes',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: error.message || 'Failed to login admin'
     });
   }
 });
