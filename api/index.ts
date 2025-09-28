@@ -19,31 +19,26 @@ app.use((req, res, next) => {
 
 // Initialize MongoDB connection
 let mongoConnected = false;
-let mongoConnectionPromise: Promise<void> | null = null;
 
 const initializeMongoDB = async () => {
-  if (mongoConnectionPromise) {
-    return mongoConnectionPromise;
-  }
-  
-  mongoConnectionPromise = (async () => {
-    try {
-      console.log('🔍 Attempting to connect to MongoDB...');
-      console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
-      console.log('NODE_ENV:', process.env.NODE_ENV);
-      
-      const { connectMongoDB } = await import('../server/config/mongodb');
-      await connectMongoDB();
-      mongoConnected = true;
-      console.log('✅ MongoDB connected successfully');
-    } catch (error) {
-      console.error('❌ MongoDB connection failed:', error);
-      mongoConnected = false;
-      throw error;
+  try {
+    console.log('🔍 Attempting to connect to MongoDB...');
+    console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is not set');
     }
-  })();
-  
-  return mongoConnectionPromise;
+    
+    const { connectMongoDB } = await import('../server/config/mongodb');
+    await connectMongoDB();
+    mongoConnected = true;
+    console.log('✅ MongoDB connected successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', error);
+    mongoConnected = false;
+    throw error;
+  }
 };
 
 // Initialize MongoDB on startup
@@ -53,6 +48,11 @@ initializeMongoDB().catch(error => {
 
 // Middleware to check MongoDB connection
 app.use('/api', async (req, res, next) => {
+  // Skip MongoDB check for health and test endpoints
+  if (req.path === '/api/health' || req.path === '/api/test') {
+    return next();
+  }
+  
   if (!mongoConnected) {
     try {
       console.log('🔄 Retrying MongoDB connection...');
@@ -61,9 +61,10 @@ app.use('/api', async (req, res, next) => {
       console.error('❌ MongoDB retry failed:', error);
       return res.status(503).json({
         success: false,
-        message: 'Database connection not available. Please try again later.',
+        message: 'Database connection not available. Please check environment variables.',
         error: 'MongoDB not connected',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        hint: 'Make sure MONGODB_URI is set in Vercel environment variables'
       });
     }
   }
