@@ -1,42 +1,21 @@
-import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, type Auth } from "firebase/auth";
-import { getFirestore, serverTimestamp, doc, setDoc, type Firestore } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
-  storageBucket: (import.meta.env as any).VITE_FIREBASE_STORAGE_BUCKET,
-  measurementId: (import.meta.env as any).VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyCrEracZBO8eiUpBk9H_wKbQozMJVdH0iQ",
+  authDomain: "harvestchain-ipfs.firebaseapp.com",
+  projectId: "harvestchain-ipfs",
+  storageBucket: "harvestchain-ipfs.firebasestorage.app",
+  messagingSenderId: "294474382769",
+  appId: "1:294474382769:web:87a105cd1b97633c591190",
+  measurementId: "G-LKE97PC136"
 };
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Firestore | undefined;
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
-export function getFirebaseApp(): FirebaseApp {
-  if (!app) {
-    app = initializeApp(firebaseConfig);
-  }
-  return app;
-}
+// Initialize Firebase Authentication and get a reference to the service
+export const auth = getAuth(app);
 
-export function getFirebaseAuth(): Auth {
-  if (!auth) {
-    auth = getAuth(getFirebaseApp());
-  }
-  return auth;
-}
-
-export function getDb(): Firestore {
-  if (!db) {
-    db = getFirestore(getFirebaseApp());
-  }
-  return db;
-}
-
-export { RecaptchaVerifier, signInWithPhoneNumber, serverTimestamp, doc, setDoc };
-
-
+export default app;

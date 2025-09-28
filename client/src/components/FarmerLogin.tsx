@@ -3,21 +3,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, Lock } from "lucide-react";
+import { Smartphone, Lock, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { loginFarmer } from "@/lib/farmerApi";
 
 interface FarmerLoginProps {
-  onLogin: (phoneNumber: string, passcode: string) => void;
+  onLogin: (farmerData: any) => void;
   onRegister?: () => void;
+  onBack?: () => void;
   isLoading?: boolean;
 }
 
-export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: FarmerLoginProps) {
+export default function FarmerLogin({ onLogin, onRegister, onBack, isLoading = false }: FarmerLoginProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [passcode, setPasscode] = useState("");
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!phoneNumber || !passcode) {
@@ -38,12 +40,46 @@ export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: 
       return;
     }
 
-    console.log('Login attempt:', { phoneNumber, passcode });
-    onLogin(phoneNumber, passcode);
+    if (passcode.length !== 4) {
+      toast({
+        title: "Invalid Passcode",
+        description: "Passcode must be 4 digits",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const result = await loginFarmer(phoneNumber, passcode);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Login failed');
+      }
+      
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!"
+      });
+      onLogin(result.data);
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid phone number or passcode. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Back button in top-left */}
+      <div className="fixed top-4 left-4 z-50">
+        <Button variant="outline" size="sm" onClick={onBack} data-testid="button-back">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+      </div>
+      
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
@@ -55,7 +91,7 @@ export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-sm font-medium">
                 Phone Number
@@ -83,9 +119,9 @@ export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: 
                 <Input
                   id="passcode"
                   type="password"
-                  placeholder="Enter your passcode"
+                  placeholder="Enter your 4-digit passcode"
                   value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
+                  onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   className="pl-10"
                   data-testid="input-passcode"
                 />
@@ -101,14 +137,6 @@ export default function FarmerLogin({ onLogin, onRegister, isLoading = false }: 
               {isLoading ? "Logging in..." : "Login"}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-muted rounded-md">
-            <p className="text-sm text-muted-foreground mb-2">Demo Credentials:</p>
-            <div className="text-xs space-y-1">
-              <div>Phone: 9876543210, Passcode: 1234</div>
-              <div>Phone: 9876543211, Passcode: 5678</div>
-            </div>
-          </div>
 
           <div className="mt-6">
             <Button type="button" variant="outline" className="w-full" onClick={onRegister} data-testid="button-register">

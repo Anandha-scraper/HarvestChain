@@ -2,7 +2,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, MapPin, CreditCard, Plus, QrCode, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { User, MapPin, CreditCard, Plus, QrCode, Upload, LogOut, Edit, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { updateFarmerCrops } from "@/lib/farmerApi";
 
 interface Farmer {
   id: string;
@@ -18,21 +25,106 @@ interface FarmerDashboardProps {
   onGenerateQR: () => void;
   onViewHistory: () => void;
   onLogout: () => void;
+  onCropsUpdate?: (crops: string[]) => void;
 }
 
-export default function FarmerDashboard({ farmer, onGenerateQR, onViewHistory, onLogout }: FarmerDashboardProps) {
+const defaultCrops = [
+  "Rice",
+  "Wheat",
+  "Sugarcane",
+  "Cotton",
+  "Coconut",
+  "Banana",
+  "Maize",
+  "Millet",
+  "Groundnut",
+  "Pulses",
+];
+
+export default function FarmerDashboard({ farmer, onGenerateQR, onViewHistory, onLogout, onCropsUpdate }: FarmerDashboardProps) {
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [selectedCrops, setSelectedCrops] = useState<string[]>(farmer.cropsGrown);
+  const [customCrop, setCustomCrop] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const availableCrops = defaultCrops.filter(crop => !selectedCrops.includes(crop));
+
+  const toggleCrop = (crop: string) => {
+    if (selectedCrops.includes(crop)) {
+      setSelectedCrops(selectedCrops.filter(c => c !== crop));
+    } else {
+      setSelectedCrops([...selectedCrops, crop]);
+    }
+  };
+
+  const addCustomCrop = () => {
+    if (customCrop.trim() && !selectedCrops.includes(customCrop.trim())) {
+      setSelectedCrops([...selectedCrops, customCrop.trim()]);
+      setCustomCrop("");
+    }
+  };
+
+  const removeCrop = (crop: string) => {
+    setSelectedCrops(selectedCrops.filter(c => c !== crop));
+  };
+
+  const handleSaveCrops = async () => {
+    if (selectedCrops.length === 0) {
+      toast({
+        title: "No Crops Selected",
+        description: "Please select at least one crop",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // Call the real API to update crops in MongoDB
+      const result = await updateFarmerCrops(farmer.id, selectedCrops);
+      
+      if (result.success) {
+        // Update local state
+        if (onCropsUpdate) {
+          onCropsUpdate(selectedCrops);
+        }
+        
+        toast({
+          title: "Crops Updated",
+          description: "Your crop list has been updated successfully in the database",
+        });
+        
+        setIsCropDialogOpen(false);
+      } else {
+        throw new Error(result.message || 'Failed to update crops');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update crops",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background p-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-start gap-3">
-        <Button variant="outline" size="sm" onClick={onLogout} data-testid="button-logout">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-medium text-foreground">Dashboard</h1>
+        </div>
+        <Button variant="destructive" size="sm" onClick={onLogout} data-testid="button-logout">
+          <LogOut className="w-4 h-4 mr-2" />
           Logout
         </Button>
-        <h1 className="text-2xl font-medium text-foreground">Dashboard</h1>
       </div>
 
       {/* Farmer Profile Card */}
@@ -69,7 +161,96 @@ export default function FarmerDashboard({ farmer, onGenerateQR, onViewHistory, o
             </div>
             
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Registered Crops:</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Registered Crops:</p>
+                <Dialog open={isCropDialogOpen} onOpenChange={setIsCropDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add New Crop
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Manage Crops</DialogTitle>
+                      <DialogDescription>
+                        Add, update, or remove your registered crops
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Select Crops</Label>
+                        <Tabs defaultValue="pick">
+                          <TabsList className="grid grid-cols-2 w-full">
+                            <TabsTrigger value="pick">Choose</TabsTrigger>
+                            <TabsTrigger value="custom">Add Custom</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="pick" className="mt-3">
+                            <div className="flex flex-wrap gap-2">
+                              {availableCrops.map((crop) => (
+                                <Badge
+                                  key={crop}
+                                  onClick={() => toggleCrop(crop)}
+                                  className={`cursor-pointer select-none ${selectedCrops.includes(crop) ? 'bg-primary text-primary-foreground' : ''}`}
+                                >
+                                  {crop}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="custom" className="mt-3">
+                            <div className="flex gap-2">
+                              <Input 
+                                placeholder="Enter crop name" 
+                                value={customCrop} 
+                                onChange={(e) => setCustomCrop(e.target.value)} 
+                              />
+                              <Button type="button" onClick={addCustomCrop}>
+                                <Plus className="w-4 h-4 mr-1" /> Add
+                              </Button>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+
+                      {selectedCrops.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Selected Crops</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedCrops.map((crop, index) => (
+                              <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                {crop}
+                                <button
+                                  onClick={() => removeCrop(crop)}
+                                  className="ml-1 hover:text-destructive"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex space-x-2">
+                        <Button 
+                          onClick={handleSaveCrops} 
+                          disabled={isUpdating || selectedCrops.length === 0}
+                          className="flex-1"
+                        >
+                          {isUpdating ? "Updating..." : "Save Changes"}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsCropDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {farmer.cropsGrown.map((crop, index) => (
                   <Badge key={index} variant="secondary" data-testid={`badge-crop-${index}`}>

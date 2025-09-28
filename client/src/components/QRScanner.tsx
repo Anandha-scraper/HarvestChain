@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Camera, QrCode, MapPin, IndianRupee, Upload, Scan, Clock, CheckCircle, XCircle, TrendingUp, History } from "lucide-react";
+import { Camera, QrCode, MapPin, IndianRupee, Upload, Scan, Clock, CheckCircle, XCircle, TrendingUp, History, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PriceHistory {
@@ -44,9 +44,10 @@ interface QRScannerProps {
   userType: "retailer" | "consumer";
   onStatusUpdate: (qrCode: string, newStatus: string, price?: string) => void;
   onPriceUpdateRequest?: (request: PriceUpdateRequest) => void;
+  onBack?: () => void;
 }
 
-export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateRequest }: QRScannerProps) {
+export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateRequest, onBack }: QRScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<ScannedCrop | null>(null);
   const [newPrice, setNewPrice] = useState("");
@@ -263,11 +264,21 @@ export default function QRScanner({ userType, onStatusUpdate, onPriceUpdateReque
   return (
     <div className="min-h-screen bg-background p-4 space-y-6">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-medium">QR Scanner</h1>
-        <p className="text-muted-foreground">
-          Scan QR codes to track crop journey ({userType === "retailer" ? "Distributer / Retailer" : userType})
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          {onBack && (
+            <Button variant="outline" size="sm" onClick={onBack} data-testid="button-back">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          )}
+          <div>
+            <h1 className="text-2xl font-medium">QR Scanner</h1>
+            <p className="text-muted-foreground">
+              Scan QR codes to track crop journey ({userType === "retailer" ? "Distributer / Retailer" : userType})
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Scanner Card */}

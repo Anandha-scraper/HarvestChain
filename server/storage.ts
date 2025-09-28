@@ -104,6 +104,10 @@ export class MemStorage implements IStorage {
     const batch: CropBatch = { 
       ...insertBatch, 
       id, 
+      status: insertBatch.status || "generated",
+      giTag: insertBatch.giTag || null,
+      qrCodes: Array.isArray(insertBatch.qrCodes) ? insertBatch.qrCodes as string[] : null,
+      ipfsHash: insertBatch.ipfsHash || null,
       createdAt: new Date()
     };
     this.cropBatches.set(id, batch);
@@ -135,6 +139,8 @@ export class MemStorage implements IStorage {
     const scan: QrScan = { 
       ...insertScan, 
       id, 
+      location: insertScan.location || null,
+      currentPrice: insertScan.currentPrice || null,
       scannedAt: new Date()
     };
     this.qrScans.set(id, scan);

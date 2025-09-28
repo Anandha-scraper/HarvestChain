@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, Lock, User, CreditCard, MapPin, Plus } from "lucide-react";
+import { Smartphone, Lock, User, CreditCard, MapPin, Plus, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getFirebaseAuth, getDb, RecaptchaVerifier, signInWithPhoneNumber, setDoc, doc, serverTimestamp } from "@/lib/firebase";
+import { sendOTP, verifyOTP, clearRecaptcha, ConfirmationResult } from "@/lib/phoneAuth";
+import { createFarmer, FarmerData } from "@/lib/farmerApi";
 
 interface FarmerRegisterProps {
   onBack: () => void;
@@ -45,6 +46,7 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
   const availableCrops = useMemo(() => {
     const set = new Set([...defaultCrops, ...selectedCrops]);
@@ -70,21 +72,16 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
       return;
     }
     try {
-      const auth = getFirebaseAuth();
-      // attach verifier to a hidden container id
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", { size: "invisible" });
-      const fullPhone = "+91" + phoneNumber; // adjust country code if needed
-      const confirmation = await signInWithPhoneNumber(auth, fullPhone, verifier);
-      // store confirmation in window for simplicity
-      (window as any).confirmationResult = confirmation;
+      const result = await sendOTP(phoneNumber);
+      setConfirmationResult(result);
       setOtpSent(true);
-      toast({ title: "OTP sent", description: `Code sent to ${fullPhone}` });
+      toast({ title: "OTP sent", description: `Code sent to +91${phoneNumber}` });
     } catch (err: any) {
       toast({ title: "OTP error", description: err.message || String(err), variant: "destructive" });
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name || !phoneNumber || !passcode || !confirmPasscode || !aadharNumber || !location) {
@@ -103,6 +100,10 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
       toast({ title: "Mismatch", description: "Passcodes do not match", variant: "destructive" });
       return;
     }
+    if (aadharNumber.length !== 12 || /\D/.test(aadharNumber)) {
+      toast({ title: "Invalid Aadhar", description: "Aadhar number must be exactly 12 digits", variant: "destructive" });
+      return;
+    }
     if (!otpSent) {
       toast({ title: "Verify OTP", description: "Press 'Send OTP' and verify", variant: "destructive" });
       return;
@@ -110,19 +111,29 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
 
     setIsSubmitting(true);
     try {
-      const confirmation = (window as any).confirmationResult;
-      const result = await confirmation.confirm(otp);
-      const uid: string = result.user.uid;
-      const db = getDb();
-      await setDoc(doc(db, "farmers", uid), {
+      if (!confirmationResult) {
+        throw new Error("No confirmation result found. Please send OTP again.");
+      }
+      
+      const result = await verifyOTP(confirmationResult, otp);
+      const uid: string = result.uid;
+      
+      // Save farmer data to MongoDB
+      const farmerData: FarmerData = {
+        firebaseUid: uid,
         name,
         phoneNumber,
+        passcode,
         aadharNumber,
         location,
         cropsGrown: selectedCrops.length ? selectedCrops : ["Rice"],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      };
+
+      const saveResult = await createFarmer(farmerData);
+      
+      if (!saveResult.success) {
+        throw new Error(saveResult.message || 'Failed to save farmer data');
+      }
 
       setIsSubmitting(false);
       toast({ title: "Registered", description: "Farmer registered successfully" });
@@ -140,6 +151,14 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Back button in top-left */}
+      <div className="fixed top-4 left-4 z-50">
+        <Button variant="outline" size="sm" onClick={onBack} data-testid="button-back">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+      </div>
+      
       <Card className="w-full max-w-xl">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4">
@@ -180,11 +199,24 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
                 </div>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="aadhar">Aadhar Number</Label>
+                <Label htmlFor="aadhar">Aadhar Number (12 digits)</Label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="aadhar" placeholder="XXXX-XXXX-XXXX" value={aadharNumber} onChange={(e) => setAadharNumber(e.target.value)} className="pl-10" />
+                  <Input 
+                    id="aadhar" 
+                    type="tel"
+                    placeholder="123456789012" 
+                    value={aadharNumber} 
+                    onChange={(e) => setAadharNumber(e.target.value.replace(/\D/g, '').slice(0, 12))} 
+                    className="pl-10" 
+                    maxLength={12}
+                  />
                 </div>
+                {aadharNumber.length > 0 && aadharNumber.length !== 12 && (
+                  <p className="text-sm text-destructive">
+                    Aadhar number must be exactly 12 digits
+                  </p>
+                )}
               </div>
             </div>
 
@@ -239,8 +271,7 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
             </div>
 
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onBack}>Back</Button>
-              <Button type="submit" className="ml-auto" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Verify & Register"}</Button>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Verify & Register"}</Button>
             </div>
           </form>
         </CardContent>

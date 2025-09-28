@@ -10,13 +10,14 @@ import { useToast } from "@/hooks/use-toast";
 
 interface QRGeneratorProps {
   farmerName: string;
+  registeredCrops: string[];
   onBack: () => void;
   onUploadToIPFS: (batchData: any) => void;
 }
 
 type QuantityType = "5kg" | "single" | "custom";
 
-export default function QRGenerator({ farmerName, onBack, onUploadToIPFS }: QRGeneratorProps) {
+export default function QRGenerator({ farmerName, registeredCrops, onBack, onUploadToIPFS }: QRGeneratorProps) {
   const [cropType, setCropType] = useState("");
   const [giTag, setGiTag] = useState("");
   const [quantityType, setQuantityType] = useState<QuantityType>("5kg");
@@ -26,10 +27,8 @@ export default function QRGenerator({ farmerName, onBack, onUploadToIPFS }: QRGe
   const [qrCount, setQrCount] = useState(1);
   const { toast } = useToast();
 
-  const cropOptions = [
-    "Rice", "Wheat", "Corn", "Sugarcane", "Cotton", "Coconut", 
-    "Banana", "Apple", "Mango", "Tomato", "Potato", "Onion"
-  ];
+  // Use registered crops instead of hardcoded options
+  const cropOptions = registeredCrops;
 
   const giTagOptions = [
     "Basmati Rice - GI Tag", "Mysore Silk - GI Tag", "Darjeeling Tea - GI Tag",
@@ -41,6 +40,15 @@ export default function QRGenerator({ farmerName, onBack, onUploadToIPFS }: QRGe
       toast({
         title: "Missing Information",
         description: "Please select a crop type",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (registeredCrops.length === 0) {
+      toast({
+        title: "No Registered Crops",
+        description: "Please register crops in your dashboard before generating QR codes",
         variant: "destructive",
       });
       return;
@@ -135,18 +143,26 @@ export default function QRGenerator({ farmerName, onBack, onUploadToIPFS }: QRGe
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="crop-type">Crop Type *</Label>
-              <Select value={cropType} onValueChange={setCropType}>
-                <SelectTrigger data-testid="select-crop-type">
-                  <SelectValue placeholder="Select crop type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cropOptions.map((crop) => (
-                    <SelectItem key={crop} value={crop}>
-                      {crop}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {registeredCrops.length === 0 ? (
+                <div className="p-4 border border-dashed border-muted-foreground rounded-md text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No registered crops found. Please add crops in your dashboard first.
+                  </p>
+                </div>
+              ) : (
+                <Select value={cropType} onValueChange={setCropType}>
+                  <SelectTrigger data-testid="select-crop-type">
+                    <SelectValue placeholder="Select crop type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cropOptions.map((crop) => (
+                      <SelectItem key={crop} value={crop}>
+                        {crop}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-2">

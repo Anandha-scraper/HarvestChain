@@ -9,11 +9,14 @@ import FarmerDashboard from "@/components/FarmerDashboard";
 import FarmerRegister from "@/components/FarmerRegister";
 import QRGenerator from "@/components/QRGenerator";
 import QRScanner from "@/components/QRScanner";
+import AdminLogin from "@/components/AdminLogin";
+import AdminDashboard from "@/components/AdminDashboard";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
+import { Shield } from "lucide-react";
 
-type UserType = "farmer" | "retailer" | "consumer" | null;
-type AppState = "userSelect" | "farmerLogin" | "farmerRegister" | "farmerDashboard" | "qrGenerator" | "qrScanner";
+type UserType = "farmer" | "retailer" | "consumer" | "admin" | null;
+type AppState = "userSelect" | "farmerLogin" | "farmerRegister" | "farmerDashboard" | "qrGenerator" | "qrScanner" | "adminLogin" | "adminDashboard";
 
 interface Farmer {
   id: string;
@@ -54,6 +57,7 @@ function App() {
   const [userType, setUserType] = useState<UserType>(null);
   const [appState, setAppState] = useState<AppState>("userSelect");
   const [currentFarmer, setCurrentFarmer] = useState<Farmer | null>(null);
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null);
   const { toast } = useToast();
 
   const handleUserTypeSelect = (type: UserType) => {
@@ -66,27 +70,24 @@ function App() {
     console.log('Selected user type:', type);
   };
 
-  const handleFarmerLogin = (phoneNumber: string, passcode: string) => {
-    // Simulate authentication
-    const farmer = mockFarmers[phoneNumber];
-    const expectedPasscode = mockPasscodes[phoneNumber];
+  const handleFarmerLogin = (farmerData: any) => {
+    // Convert MongoDB farmer data to app format
+    const farmer: Farmer = {
+      id: farmerData._id || farmerData.firebaseUid,
+      name: farmerData.name,
+      phoneNumber: farmerData.phoneNumber,
+      aadharNumber: farmerData.aadharNumber,
+      place: farmerData.location,
+      cropsGrown: farmerData.cropsGrown
+    };
 
-    if (farmer && expectedPasscode === passcode) {
-      setCurrentFarmer(farmer);
-      setAppState("farmerDashboard");
-      toast({
-        title: "Login Successful",
-        description: `Welcome back, ${farmer.name}!`,
-      });
-      console.log('Farmer logged in:', farmer);
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Invalid phone number or passcode",
-        variant: "destructive",
-      });
-      console.log('Login failed for:', phoneNumber);
-    }
+    setCurrentFarmer(farmer);
+    setAppState("farmerDashboard");
+    toast({
+      title: "Login Successful",
+      description: `Welcome back, ${farmer.name}!`,
+    });
+    console.log('Farmer logged in:', farmer);
   };
 
   const handleGoToRegister = () => {
@@ -126,11 +127,33 @@ function App() {
     setAppState("userSelect");
     setUserType(null);
     setCurrentFarmer(null);
+    setCurrentAdmin(null);
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out",
     });
     console.log('User logged out');
+  };
+
+  const handleAdminLogin = (adminData: any) => {
+    setCurrentAdmin(adminData);
+    setAppState("adminDashboard");
+    toast({
+      title: "Admin Login Successful",
+      description: `Welcome back, ${adminData.username}!`,
+    });
+    console.log('Admin logged in:', adminData);
+  };
+
+  const handleAdminLogout = () => {
+    setAppState("userSelect");
+    setUserType(null);
+    setCurrentAdmin(null);
+    toast({
+      title: "Admin Logged Out",
+      description: "You have been successfully logged out",
+    });
+    console.log('Admin logged out');
   };
 
   const handleUploadToIPFS = (batchData: any) => {
@@ -150,6 +173,15 @@ function App() {
     // In real implementation, this would update the backend
   };
 
+  const handleCropsUpdate = (crops: string[]) => {
+    if (currentFarmer) {
+      setCurrentFarmer({
+        ...currentFarmer,
+        cropsGrown: crops
+      });
+    }
+  };
+
   const handlePriceUpdateRequest = (request: any) => {
     // Simulate sending price update request to farmer
     console.log('Price update request sent to farmer:', request);
@@ -166,7 +198,7 @@ function App() {
         return <UserTypeSelector onSelectUserType={handleUserTypeSelect} />;
       
       case "farmerLogin":
-        return <FarmerLogin onLogin={handleFarmerLogin} onRegister={handleGoToRegister} />;
+        return <FarmerLogin onLogin={handleFarmerLogin} onRegister={handleGoToRegister} onBack={handleBack} />;
 
       case "farmerRegister":
         return (
@@ -192,6 +224,18 @@ function App() {
             onGenerateQR={handleGenerateQR}
             onViewHistory={handleViewHistory}
             onLogout={handleLogout}
+            onCropsUpdate={handleCropsUpdate}
+          />
+        ) : null;
+
+      case "adminLogin":
+        return <AdminLogin onLogin={handleAdminLogin} onBack={handleBack} />;
+
+      case "adminDashboard":
+        return currentAdmin ? (
+          <AdminDashboard
+            adminData={currentAdmin}
+            onLogout={handleAdminLogout}
           />
         ) : null;
       
@@ -199,6 +243,7 @@ function App() {
         return currentFarmer ? (
           <QRGenerator
             farmerName={currentFarmer.name}
+            registeredCrops={currentFarmer.cropsGrown}
             onBack={handleBack}
             onUploadToIPFS={handleUploadToIPFS}
           />
@@ -206,22 +251,12 @@ function App() {
       
       case "qrScanner":
         return (
-          <div className="relative">
-            <QRScanner
-              userType={userType as "retailer" | "consumer"}
-              onStatusUpdate={handleStatusUpdate}
-              onPriceUpdateRequest={handlePriceUpdateRequest}
-            />
-            <div className="fixed top-4 left-4">
-              <button
-                onClick={handleBack}
-                className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover-elevate"
-                data-testid="button-back-to-user-select"
-              >
-                Back to User Selection
-              </button>
-            </div>
-          </div>
+          <QRScanner
+            userType={userType as "retailer" | "consumer"}
+            onStatusUpdate={handleStatusUpdate}
+            onPriceUpdateRequest={handlePriceUpdateRequest}
+            onBack={handleBack}
+          />
         );
       
       default:
@@ -233,10 +268,28 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <div className="relative">
-          {/* Global theme toggle visible on all screens */}
-          <div className="fixed top-4 right-4 z-50">
-            <ThemeToggle />
+          {/* Hidden admin access - completely invisible, only on hover in bottom-left */}
+          <div className="fixed bottom-4 left-4 z-50">
+            <div className="group w-10 h-10">
+              <button
+                onClick={() => {
+                  setUserType("admin");
+                  setAppState("adminLogin");
+                }}
+                className="w-full h-full opacity-0 group-hover:opacity-100 transition-all duration-300 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 flex items-center justify-center"
+                title="Admin Access"
+              >
+                <Shield className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
+          {/* Global theme toggle visible only on user selection and QR scanner screens */}
+          {(appState === "userSelect" || appState === "qrScanner") && (
+            <div className="fixed top-4 right-4 z-50">
+              <ThemeToggle />
+            </div>
+          )}
           
           {renderContent()}
         </div>
