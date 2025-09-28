@@ -13,11 +13,26 @@ const options = {
 // Connect to MongoDB
 export const connectMongoDB = async (): Promise<void> => {
   try {
+    // Check if already connected
+    if (mongoose.connection.readyState === 1) {
+      console.log('✅ MongoDB already connected');
+      return;
+    }
+
+    console.log('🔍 Connecting to MongoDB...');
+    console.log('MONGODB_URI:', MONGODB_URI ? 'Set' : 'Not set');
+    
     await mongoose.connect(MONGODB_URI, options);
     console.log('✅ Connected to MongoDB Atlas successfully');
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
+    console.error('MONGODB_URI:', MONGODB_URI);
+    console.error('Error details:', error);
+    // Don't exit process in serverless environment
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+    throw error;
   }
 };
 

@@ -19,29 +19,53 @@ app.use((req, res, next) => {
 
 // Initialize MongoDB connection
 let mongoConnected = false;
+let mongoConnectionPromise: Promise<void> | null = null;
+
 const initializeMongoDB = async () => {
-  try {
-    const { connectMongoDB } = await import('../server/config/mongodb');
-    await connectMongoDB();
-    mongoConnected = true;
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error);
-    mongoConnected = false;
+  if (mongoConnectionPromise) {
+    return mongoConnectionPromise;
   }
+  
+  mongoConnectionPromise = (async () => {
+    try {
+      console.log('🔍 Attempting to connect to MongoDB...');
+      console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+      console.log('NODE_ENV:', process.env.NODE_ENV);
+      
+      const { connectMongoDB } = await import('../server/config/mongodb');
+      await connectMongoDB();
+      mongoConnected = true;
+      console.log('✅ MongoDB connected successfully');
+    } catch (error) {
+      console.error('❌ MongoDB connection failed:', error);
+      mongoConnected = false;
+      throw error;
+    }
+  })();
+  
+  return mongoConnectionPromise;
 };
 
 // Initialize MongoDB on startup
-initializeMongoDB();
+initializeMongoDB().catch(error => {
+  console.error('Failed to initialize MongoDB:', error);
+});
 
 // Middleware to check MongoDB connection
-app.use('/api', (req, res, next) => {
+app.use('/api', async (req, res, next) => {
   if (!mongoConnected) {
-    return res.status(503).json({
-      success: false,
-      message: 'Database connection not available. Please try again later.',
-      error: 'MongoDB not connected'
-    });
+    try {
+      console.log('🔄 Retrying MongoDB connection...');
+      await initializeMongoDB();
+    } catch (error) {
+      console.error('❌ MongoDB retry failed:', error);
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection not available. Please try again later.',
+        error: 'MongoDB not connected',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
   next();
 });
@@ -83,17 +107,26 @@ app.get('/api/health', (req, res) => {
 // Test endpoint to check MongoDB connection
 app.get('/api/test', async (req, res) => {
   try {
+    console.log('🧪 Testing MongoDB connection...');
     const { connectMongoDB } = await import('../server/config/mongodb');
     await connectMongoDB();
+    
+    // Test a simple query
+    const { default: mongoose } = await import('mongoose');
+    const collections = await mongoose.connection.db?.listCollections().toArray();
+    
     res.json({ 
       status: 'OK', 
       message: 'MongoDB connection successful',
       mongoConnected,
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
-      mongoUri: process.env.MONGODB_URI ? 'Set' : 'Not set'
+      mongoUri: process.env.MONGODB_URI ? 'Set' : 'Not set',
+      readyState: mongoose.connection.readyState,
+      collections: collections?.length || 0
     });
   } catch (error: any) {
+    console.error('❌ Test endpoint error:', error);
     res.status(500).json({ 
       status: 'ERROR', 
       message: 'MongoDB connection failed',
@@ -101,7 +134,8 @@ app.get('/api/test', async (req, res) => {
       error: error.message,
       stack: error.stack,
       environment: process.env.NODE_ENV,
-      mongoUri: process.env.MONGODB_URI ? 'Set' : 'Not set'
+      mongoUri: process.env.MONGODB_URI ? 'Set' : 'Not set',
+      readyState: error.readyState || 'unknown'
     });
   }
 });
