@@ -275,6 +275,166 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
+// Get all farmers for admin
+app.get('/api/admin/farmers', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = parseInt(req.query.skip as string) || 0;
+    
+    const farmers = await Farmer.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip);
+    
+    const total = await Farmer.countDocuments();
+    
+    res.json({
+      success: true,
+      data: farmers,
+      pagination: {
+        limit,
+        skip,
+        total,
+        count: farmers.length
+      }
+    });
+  } catch (error: any) {
+    console.error('Error getting farmers:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get farmers'
+    });
+  }
+});
+
+// Get admin statistics
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const totalFarmers = await Farmer.countDocuments();
+    
+    const farmers = await Farmer.find({}, 'cropsGrown location');
+    
+    const farmersByCrop: { [key: string]: number } = {};
+    const farmersByLocation: { [key: string]: number } = {};
+    
+    farmers.forEach(farmer => {
+      // Count crops
+      farmer.cropsGrown.forEach(crop => {
+        farmersByCrop[crop] = (farmersByCrop[crop] || 0) + 1;
+      });
+      
+      // Count locations
+      farmersByLocation[farmer.location] = (farmersByLocation[farmer.location] || 0) + 1;
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        totalFarmers,
+        farmersByCrop,
+        farmersByLocation
+      }
+    });
+  } catch (error: any) {
+    console.error('Error getting admin stats:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get admin statistics'
+    });
+  }
+});
+
+// Get farmer by ID for admin
+app.get('/api/admin/farmers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const farmer = await Farmer.findById(id);
+    
+    if (!farmer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Farmer not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: farmer
+    });
+  } catch (error: any) {
+    console.error('Error getting farmer by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get farmer'
+    });
+  }
+});
+
+// Update farmer by ID for admin
+app.put('/api/admin/farmers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Remove sensitive fields that shouldn't be updated
+    delete updateData.passcode;
+    delete updateData.firebaseUid;
+    delete updateData._id;
+    delete updateData.createdAt;
+    
+    const farmer = await Farmer.findByIdAndUpdate(
+      id,
+      { ...updateData, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    );
+    
+    if (!farmer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Farmer not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Farmer updated successfully',
+      data: farmer
+    });
+  } catch (error: any) {
+    console.error('Error updating farmer:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update farmer'
+    });
+  }
+});
+
+// Delete farmer by ID for admin
+app.delete('/api/admin/farmers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Farmer.findByIdAndDelete(id);
+    
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Farmer not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Farmer deleted successfully'
+    });
+  } catch (error: any) {
+    console.error('Error deleting farmer:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete farmer'
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'API is running' });
