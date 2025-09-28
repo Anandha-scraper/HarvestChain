@@ -83,6 +83,19 @@ export default function FarmerDashboard({ farmer, onGenerateQR, onViewHistory, o
       return;
     }
 
+    console.log('🔍 Farmer object:', farmer);
+    console.log('🔍 Farmer ID:', farmer.id);
+    console.log('🔍 Selected crops:', selectedCrops);
+
+    if (!farmer.id) {
+      toast({
+        title: "Error",
+        description: "Farmer ID is missing. Please login again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsUpdating(true);
     try {
       // Call the real API to update crops in MongoDB

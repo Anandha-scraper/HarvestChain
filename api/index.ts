@@ -132,7 +132,8 @@ app.post('/api/farmers/login', async (req, res) => {
       success: true,
       message: 'Login successful',
       data: {
-        id: farmer._id,
+        id: farmer._id.toString(),
+        _id: farmer._id.toString(),
         name: farmer.name,
         phoneNumber: farmer.phoneNumber,
         aadharNumber: farmer.aadharNumber,
@@ -200,6 +201,15 @@ app.put('/api/farmers/crops/:farmerId', async (req, res) => {
     const { farmerId } = req.params;
     const { crops } = req.body;
     
+    console.log('🔍 Updating farmer crops:', { farmerId, crops });
+    
+    if (!farmerId || farmerId === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        message: 'Farmer ID is required and cannot be undefined'
+      });
+    }
+    
     if (!crops || !Array.isArray(crops)) {
       return res.status(400).json({
         success: false,
@@ -223,16 +233,18 @@ app.put('/api/farmers/crops/:farmerId', async (req, res) => {
       });
     }
     
+    console.log('✅ Farmer crops updated successfully:', farmer._id);
     res.json({
       success: true,
       message: 'Farmer crops updated successfully',
       data: farmer
     });
   } catch (error: any) {
-    console.error('Error updating farmer crops:', error);
+    console.error('❌ Error updating farmer crops:', error);
     res.status(400).json({
       success: false,
-      message: error.message || 'Failed to update farmer crops'
+      message: error.message || 'Failed to update farmer crops',
+      details: error.message
     });
   }
 });
