@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Smartphone, Lock, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ interface FarmerLoginProps {
 export default function FarmerLogin({ onLogin, onRegister, onBack, isLoading = false }: FarmerLoginProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [showPasscode, setShowPasscode] = useState(false);
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -116,13 +118,14 @@ export default function FarmerLogin({ onLogin, onRegister, onBack, isLoading = f
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
+                <PasswordInput
                   id="passcode"
-                  type="password"
                   placeholder="Enter your 4-digit passcode"
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   className="pl-10"
+                  showPassword={showPasscode}
+                  onToggleVisibility={() => setShowPasscode(!showPasscode)}
                   data-testid="input-passcode"
                 />
               </div>

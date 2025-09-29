@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,8 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
   const [phoneNumber, setPhoneNumber] = useState("");
   const [passcode, setPasscode] = useState("");
   const [confirmPasscode, setConfirmPasscode] = useState("");
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [showConfirmPasscode, setShowConfirmPasscode] = useState(false);
   const [aadharNumber, setAadharNumber] = useState("");
   const [location, setLocation] = useState("");
   const [selectedCrops, setSelectedCrops] = useState<string[]>([]);
@@ -188,14 +191,30 @@ export default function FarmerRegister({ onBack, onRegistered }: FarmerRegisterP
                 <Label htmlFor="passcode">Passcode (4 digits)</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="passcode" type="password" placeholder="e.g. 1234" value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="pl-10" />
+                  <PasswordInput 
+                    id="passcode" 
+                    placeholder="e.g. 1234" 
+                    value={passcode} 
+                    onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                    className="pl-10"
+                    showPassword={showPasscode}
+                    onToggleVisibility={() => setShowPasscode(!showPasscode)}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirm Passcode</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="confirm" type="password" placeholder="re-enter passcode" value={confirmPasscode} onChange={(e) => setConfirmPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="pl-10" />
+                  <PasswordInput 
+                    id="confirm" 
+                    placeholder="re-enter passcode" 
+                    value={confirmPasscode} 
+                    onChange={(e) => setConfirmPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                    className="pl-10"
+                    showPassword={showConfirmPasscode}
+                    onToggleVisibility={() => setShowConfirmPasscode(!showConfirmPasscode)}
+                  />
                 </div>
               </div>
               <div className="space-y-2 md:col-span-2">

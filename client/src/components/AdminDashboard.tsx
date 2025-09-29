@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -48,6 +49,9 @@ export default function AdminDashboard({ adminData, onLogout }: AdminDashboardPr
     newPassword: '',
     confirmPassword: ''
   });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isUpdatingCredentials, setIsUpdatingCredentials] = useState(false);
   const { toast } = useToast();
 
@@ -258,13 +262,14 @@ export default function AdminDashboard({ adminData, onLogout }: AdminDashboardPr
                   <Label htmlFor="currentPassword">Current Password (required for password change)</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                    <PasswordInput
                       id="currentPassword"
-                      type="password"
                       value={credentialsData.currentPassword}
                       onChange={(e) => setCredentialsData({ ...credentialsData, currentPassword: e.target.value })}
                       className="pl-10"
                       placeholder="Enter current password"
+                      showPassword={showCurrentPassword}
+                      onToggleVisibility={() => setShowCurrentPassword(!showCurrentPassword)}
                     />
                   </div>
                 </div>
@@ -273,13 +278,14 @@ export default function AdminDashboard({ adminData, onLogout }: AdminDashboardPr
                   <Label htmlFor="newPassword">New Password (optional)</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
+                    <PasswordInput
                       id="newPassword"
-                      type="password"
                       value={credentialsData.newPassword}
                       onChange={(e) => setCredentialsData({ ...credentialsData, newPassword: e.target.value })}
                       className="pl-10"
                       placeholder="Enter new password (min 6 characters)"
+                      showPassword={showNewPassword}
+                      onToggleVisibility={() => setShowNewPassword(!showNewPassword)}
                     />
                   </div>
                 </div>
@@ -289,13 +295,14 @@ export default function AdminDashboard({ adminData, onLogout }: AdminDashboardPr
                     <Label htmlFor="confirmPassword">Confirm New Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
+                      <PasswordInput
                         id="confirmPassword"
-                        type="password"
                         value={credentialsData.confirmPassword}
                         onChange={(e) => setCredentialsData({ ...credentialsData, confirmPassword: e.target.value })}
                         className="pl-10"
                         placeholder="Confirm new password"
+                        showPassword={showConfirmPassword}
+                        onToggleVisibility={() => setShowConfirmPassword(!showConfirmPassword)}
                       />
                     </div>
                   </div>

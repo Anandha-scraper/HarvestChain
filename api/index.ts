@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const app = express();
 app.use(express.json());
@@ -103,6 +104,19 @@ const farmerSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 const Farmer = mongoose.model('Farmer', farmerSchema);
+
+// Admin Schema
+const adminSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'admin' },
+  isActive: { type: Boolean, default: true },
+  lastLogin: { type: Date },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, { timestamps: true, versionKey: false });
+
+const Admin = mongoose.model('Admin', adminSchema);
 
 // Farmer routes
 app.post('/api/farmers/login', async (req, res) => {
@@ -261,23 +275,42 @@ app.post('/api/admin/login', async (req, res) => {
       });
     }
 
-    // Simple admin check - you can make this more secure later
-    if (username === 'admin' && password === 'admin123') {
-      res.json({
-        success: true,
-        message: 'Login successful',
-        data: {
-          id: 'admin',
-          username: 'admin',
-          role: 'admin'
-        }
-      });
-    } else {
-      res.status(401).json({
+    // Check if admin exists in database
+    const admin = await Admin.findOne({ 
+      username: username,
+      isActive: true 
+    });
+
+    if (!admin) {
+      return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
       });
     }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    // Update last login
+    admin.lastLogin = new Date();
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        id: admin._id.toString(),
+        username: admin.username,
+        role: admin.role,
+        lastLogin: admin.lastLogin
+      }
+    });
   } catch (error: any) {
     console.error('Error in admin login:', error);
     res.status(500).json({
@@ -443,6 +476,136 @@ app.delete('/api/admin/farmers/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to delete farmer'
+    });
+  }
+});
+
+// Update admin credentials
+app.put('/api/admin/credentials', async (req, res) => {
+  try {
+    const { adminId, username, currentPassword, newPassword } = req.body;
+    
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin ID is required'
+      });
+    }
+
+    if (!username && !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username or new password is required'
+      });
+    }
+
+    // Find the admin
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    // If updating password, verify current password
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is required to change password'
+        });
+      }
+      
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is incorrect'
+        });
+      }
+    }
+
+    // Prepare update data
+    const updateFields: any = {};
+    if (username) {
+      // Check if username is already taken by another admin
+      const existingAdmin = await Admin.findOne({ 
+        username: username, 
+        _id: { $ne: adminId } 
+      });
+      if (existingAdmin) {
+        return res.status(400).json({
+          success: false,
+          message: 'Username already exists'
+        });
+      }
+      updateFields.username = username;
+    }
+    if (newPassword) {
+      // Hash new password
+      updateFields.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    // Update admin
+    const updatedAdmin = await Admin.findByIdAndUpdate(
+      adminId,
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Credentials updated successfully',
+      data: {
+        id: updatedAdmin._id.toString(),
+        username: updatedAdmin.username,
+        role: updatedAdmin.role
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in update admin credentials route:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update admin credentials'
+    });
+  }
+});
+
+// Initialize default admin (call this once during setup)
+app.post('/api/admin/init', async (req, res) => {
+  try {
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ username: 'admin' });
+    if (existingAdmin) {
+      return res.json({
+        success: true,
+        message: 'Admin already exists',
+        data: { username: existingAdmin.username, role: existingAdmin.role }
+      });
+    }
+
+    // Create default admin
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const admin = new Admin({
+      username: 'admin',
+      password: hashedPassword,
+      role: 'admin',
+      isActive: true
+    });
+
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: 'Default admin created successfully',
+      data: { username: admin.username, role: admin.role }
+    });
+  } catch (error: any) {
+    console.error('Error creating default admin:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create default admin'
     });
   }
 });

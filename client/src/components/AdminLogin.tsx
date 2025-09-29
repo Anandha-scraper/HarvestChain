@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Shield, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +16,7 @@ interface AdminLoginProps {
 export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -97,12 +99,13 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="Enter admin password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                showPassword={showPassword}
+                onToggleVisibility={() => setShowPassword(!showPassword)}
                 data-testid="input-password"
               />
             </div>
