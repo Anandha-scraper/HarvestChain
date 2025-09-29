@@ -276,10 +276,31 @@ app.post('/api/admin/login', async (req, res) => {
     }
 
     // Check if admin exists in database
-    const admin = await Admin.findOne({ 
+    let admin = await Admin.findOne({ 
       username: username,
       isActive: true 
     });
+
+    // If no admin exists and trying to login with default credentials, create admin
+    if (!admin && username === 'admin' && password === 'admin123') {
+      try {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        admin = new Admin({
+          username: 'admin',
+          password: hashedPassword,
+          role: 'admin',
+          isActive: true
+        });
+        await admin.save();
+        console.log('Default admin created successfully');
+      } catch (createError) {
+        console.error('Error creating default admin:', createError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create admin user'
+        });
+      }
+    }
 
     if (!admin) {
       return res.status(401).json({
