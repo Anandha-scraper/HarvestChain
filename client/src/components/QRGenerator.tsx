@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Play, Square, Upload, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface QRGeneratorProps {
   farmerName: string;
@@ -25,7 +26,21 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedQRs, setGeneratedQRs] = useState<string[]>([]);
   const [qrCount, setQrCount] = useState(1);
+  const [qrCountInput, setQrCountInput] = useState("1");
   const { toast } = useToast();
+
+  // Main/Sub QR linkage
+  const [showMainDialog, setShowMainDialog] = useState(false);
+  const [subPerMain, setSubPerMain] = useState(1);
+  const [subPerMainInput, setSubPerMainInput] = useState("1");
+  const [includeRemainderMain, setIncludeRemainderMain] = useState(true);
+  const computedMainCount = Math.floor(qrCount / Math.max(1, subPerMain));
+  const remainderSubs = Math.max(0, qrCount - computedMainCount * Math.max(1, subPerMain));
+
+  // Grouped display state
+  const [groups, setGroups] = useState<{ main?: string; subs: string[] }[]>([]);
+  const [ungroupedSubs, setUngroupedSubs] = useState<string[]>([]);
+  const [groupingConfirmed, setGroupingConfirmed] = useState(false);
 
   // Use registered crops instead of hardcoded options
   const cropOptions = registeredCrops;
@@ -35,7 +50,7 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
     "Alphonso Mango - GI Tag", "Coorg Coffee - GI Tag", "Custom GI Tag"
   ];
 
-  const generateQRCode = () => {
+  const openGroupingDialog = () => {
     if (!cropType) {
       toast({
         title: "Missing Information",
@@ -54,25 +69,73 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
       return;
     }
 
+    // Ask for main QR distribution first
+    setGroupingConfirmed(false);
+    setShowMainDialog(true);
+  };
+
+  const generateNow = () => {
+    if (!groupingConfirmed) {
+      toast({
+        title: "Confirm grouping first",
+        description: "Click Submit and confirm distribution before generating.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsGenerating(true);
-    
-    // Simulate QR generation
+
     setTimeout(() => {
       const quantity = quantityType === "custom" ? customQuantity : quantityType;
-      const newQRs = Array.from({ length: qrCount }, (_, i) => 
-        `QR-${cropType}-${quantity}-${Date.now()}-${i}`
-      );
-      
+
+      // Create sub QRs
+      const newQRs = Array.from({ length: qrCount }, (_, i) => `SUB-${cropType}-${quantity}-${Date.now()}-${i + 1}`);
+
+      // Create main QRs and link sub-sets
+      const mainCountFinal = computedMainCount + (remainderSubs > 0 && includeRemainderMain ? 1 : 0);
+      const mainQRs = Array.from({ length: mainCountFinal }, (_, i) => `MAIN-${cropType}-${quantity}-${Date.now()}-${i + 1}`);
+
+      const linkage: { main: string; subs: string[] }[] = [];
+      let cursor = 0;
+      // Full groups
+      for (let i = 0; i < computedMainCount; i++) {
+        const start = cursor;
+        const end = Math.min(start + subPerMain, newQRs.length);
+        linkage.push({ main: mainQRs[i], subs: newQRs.slice(start, end) });
+        cursor = end;
+      }
+      // Remainder group
+      if (remainderSubs > 0) {
+        if (includeRemainderMain) {
+          linkage.push({ main: mainQRs[mainQRs.length - 1], subs: newQRs.slice(cursor) });
+          cursor = newQRs.length;
+        } else {
+          // remainder subs stay ungrouped (no main QR)
+          cursor = newQRs.length;
+        }
+      }
+
       setGeneratedQRs(prev => [...prev, ...newQRs]);
+      setGroups(linkage);
+      setUngroupedSubs(!includeRemainderMain ? newQRs.slice(cursor) : []);
       setIsGenerating(false);
-      
+
       toast({
         title: "QR Codes Generated",
-        description: `Generated ${qrCount} QR code(s) for ${cropType}`,
+        description: `Generated ${newQRs.length} sub QRs, ${mainQRs.length} main QRs (${subPerMain} sub/main${remainderSubs > 0 ? `, remainder ${includeRemainderMain ? 'grouped' : 'ungrouped'}` : ''}).`,
       });
-      
-      console.log('Generated QR codes:', newQRs);
-    }, 1500);
+
+      console.log('Main/Sub QR linkage:', linkage);
+    }, 800);
+  };
+
+  const confirmGenerate = () => {
+    setGroupingConfirmed(true);
+    setShowMainDialog(false);
+    toast({
+      title: "Grouping confirmed",
+      description: `Main QRs: ${computedMainCount + (remainderSubs > 0 && includeRemainderMain ? 1 : 0)} • Sub per main: ${subPerMain}${remainderSubs ? ` • Remainder: ${remainderSubs} (${includeRemainderMain ? 'with main' : 'ungrouped'})` : ''}`,
+    });
   };
 
   const stopGeneration = () => {
@@ -118,6 +181,32 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
       title: "Download Started",
       description: "QR codes are being downloaded",
     });
+  };
+
+  // Quick path: generate only sub QRs (no main QR grouping)
+  const generateSubOnly = () => {
+    if (!cropType) {
+      toast({ title: "Missing Information", description: "Please select a crop type", variant: "destructive" });
+      return;
+    }
+    if (registeredCrops.length === 0) {
+      toast({ title: "No Registered Crops", description: "Please register crops first", variant: "destructive" });
+      return;
+    }
+    setIsGenerating(true);
+    setGroupingConfirmed(false);
+    setGroups([]);
+    setUngroupedSubs([]);
+
+    setTimeout(() => {
+      const quantity = quantityType === "custom" ? customQuantity : quantityType;
+      const newQRs = Array.from({ length: qrCount }, (_, i) => `SUB-${cropType}-${quantity}-${Date.now()}-${i + 1}`);
+      setGeneratedQRs(prev => [...prev, ...newQRs]);
+      setGroups([]);
+      setUngroupedSubs(newQRs);
+      setIsGenerating(false);
+      toast({ title: "QR Codes Generated", description: `Generated ${newQRs.length} sub QRs (no main QRs).` });
+    }, 600);
   };
 
   return (
@@ -223,20 +312,45 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
 
           <div className="space-y-2">
             <Label htmlFor="qr-count">Number of QR Codes</Label>
-            <Input
-              id="qr-count"
-              type="number"
-              min="1"
-              max="100"
-              placeholder="Enter number of QR codes"
-              value={qrCount.toString()}
-              onChange={(e) => {
-                const value = parseInt(e.target.value) || 1;
-                setQrCount(Math.max(1, Math.min(100, value)));
-              }}
-              className="w-full"
-              data-testid="input-qr-count"
-            />
+            <div className="flex items-end gap-2">
+              <Input
+                id="qr-count"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="1-100"
+                value={qrCountInput}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  // allow clearing while typing
+                  if (raw === "") {
+                    setQrCountInput("");
+                    return;
+                  }
+                  // digits only
+                  if (!/^\d+$/.test(raw)) {
+                    return;
+                  }
+                  const n = parseInt(raw, 10);
+                  if (n >= 1 && n <= 100) {
+                    setQrCount(n);
+                    setQrCountInput(raw);
+                  } else {
+                    // remove invalid entry and notify
+                    setQrCountInput("");
+                    toast({
+                      title: "Out of range",
+                      description: "Allowed range is 1 to 100.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="w-48"
+                data-testid="input-qr-count"
+              />
+              <Button size="sm" onClick={openGroupingDialog} data-testid="button-submit-qrcount">Submit</Button>
+              <Button size="sm" variant="outline" onClick={generateSubOnly} disabled={isGenerating} data-testid="button-no-main">No Main QR</Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -250,7 +364,7 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
         <CardContent>
           <div className="flex flex-wrap gap-4">
             {!isGenerating ? (
-              <Button onClick={generateQRCode} data-testid="button-start-generation">
+              <Button onClick={generateNow} disabled={!groupingConfirmed} data-testid="button-start-generation">
                 <Play className="w-4 h-4 mr-2" />
                 Start Generation
               </Button>
@@ -260,6 +374,15 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
                 Stop Generation
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              onClick={handleUploadToIPFS}
+              disabled={generatedQRs.length === 0}
+              data-testid="button-upload-near-start"
+            >
+              Upload QR
+            </Button>
             
             {generatedQRs.length > 0 && (
               <>
@@ -278,27 +401,75 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
       </Card>
 
       {/* Generated QR Codes */}
-      {generatedQRs.length > 0 && (
+      {(groups.length > 0 || ungroupedSubs.length > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Generated QR Codes</CardTitle>
             <CardDescription>
-              {generatedQRs.length} QR code(s) generated for {cropType}
+              {generatedQRs.length} sub QR(s) for {cropType}{giTag ? ` • ${giTag}` : ''}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {generatedQRs.map((qr, index) => (
-                <div key={qr} className="text-center space-y-2">
-                  <div className="w-24 h-24 bg-muted border-2 border-dashed border-border rounded-md flex items-center justify-center">
-                    <span className="text-xs text-muted-foreground">QR #{index + 1}</span>
+          <CardContent className="space-y-6">
+            {groups.length > 0 && (
+              <div className="space-y-6">
+                {groups.map((g, idx) => (
+                  <div key={g.main || `group-${idx}`} className="border rounded-md p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">Main {idx + 1}</Badge>
+                        {g.main && (
+                          <Badge variant="outline" className="text-xs">{g.main}</Badge>
+                        )}
+                      </div>
+                      <span className="text-sm text-muted-foreground">{g.subs.length} sub QR(s)</span>
+                    </div>
+                    {/* Larger Main QR visual */}
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="w-40 h-40 bg-muted border-2 border-dashed border-border rounded-md flex items-center justify-center">
+                        <span className="text-sm text-muted-foreground">Main QR</span>
+                      </div>
+                      {g.main && (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">Main ID</div>
+                          <Badge variant="outline" className="text-xs break-all max-w-xs">{g.main}</Badge>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {g.subs.map((qr, i) => (
+                        <div key={qr} className="text-center space-y-2">
+                          <div className="w-24 h-24 bg-muted border-2 border-dashed border-border rounded-md flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">Sub #{i + 1}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">{qr.split('-').pop()}</Badge>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <Badge variant="outline" className="text-xs">
-                    {qr.split('-').pop()}
-                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {ungroupedSubs.length > 0 && (
+              <div className="border rounded-md p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">Ungrouped</Badge>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{ungroupedSubs.length} sub QR(s)</span>
                 </div>
-              ))}
-            </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {ungroupedSubs.map((qr, i) => (
+                    <div key={qr} className="text-center space-y-2">
+                      <div className="w-24 h-24 bg-muted border-2 border-dashed border-border rounded-md flex items-center justify-center">
+                        <span className="text-xs text-muted-foreground">Sub #{i + 1}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{qr.split('-').pop()}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -311,6 +482,84 @@ export default function QRGenerator({ farmerName, registeredCrops, onBack, onUpl
           </CardContent>
         </Card>
       )}
+
+      {/* Main QR distribution dialog */}
+      <Dialog open={showMainDialog} onOpenChange={setShowMainDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Distribute into Main QRs</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are generating {qrCount} sub QR(s). Enter how many sub QR(s) per main QR.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="sub-per-main">Sub QRs per Main</Label>
+              <Input
+                id="sub-per-main"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={subPerMainInput}
+                placeholder={`1 - ${qrCount}`}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  if (raw === "") {
+                    setSubPerMainInput("");
+                    return;
+                  }
+                  if (!/^\d+$/.test(raw)) {
+                    return;
+                  }
+                  const n = parseInt(raw, 10);
+                  if (n >= 1 && n <= qrCount) {
+                    setSubPerMain(n);
+                    setSubPerMainInput(raw);
+                  } else {
+                    setSubPerMainInput("");
+                    toast({
+                      title: "Out of range",
+                      description: `Sub-per-main must be between 1 and ${qrCount}.`,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>Main QRs: {computedMainCount}{remainderSubs > 0 && includeRemainderMain ? ' + 1 (remainder)' : ''}</p>
+                <p>Remainder sub QRs: {remainderSubs}</p>
+              </div>
+              {remainderSubs > 0 && (
+                <div className="space-y-2 pt-2">
+                  <Label>Remainder handling</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={includeRemainderMain ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setIncludeRemainderMain(true)}
+                    >
+                      Create main for remainder
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={!includeRemainderMain ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setIncludeRemainderMain(false)}
+                    >
+                      No main for remainder
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMainDialog(false)}>Cancel</Button>
+            <Button onClick={confirmGenerate}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

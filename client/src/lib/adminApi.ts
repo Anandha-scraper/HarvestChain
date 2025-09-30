@@ -33,6 +33,36 @@ export interface AdminStats {
 // API base URL
 const API_BASE_URL = '/api/admin';
 
+// Token utilities
+const TOKEN_KEY = 'harvest_admin_token';
+
+const saveToken = (token?: string) => {
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
+  } catch {}
+};
+
+const getToken = (): string | null => {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const clearToken = () => {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+};
+
+export const getAuthHeaders = (): HeadersInit => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 // Admin login
 export const adminLogin = async (credentials: AdminLoginData): Promise<AdminResponse> => {
   try {
@@ -54,7 +84,10 @@ export const adminLogin = async (credentials: AdminLoginData): Promise<AdminResp
     if (!response.ok) {
       throw new Error(result.message || 'Failed to login');
     }
-
+    // Persist token for subsequent requests
+    if (result?.data?.token) {
+      saveToken(result.data.token);
+    }
     return result;
   } catch (error: any) {
     console.error('Error logging in admin:', error);
@@ -97,7 +130,11 @@ export const getAllFarmers = async (limit: number = 50, skip: number = 0): Promi
   };
 }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/farmers?limit=${limit}&skip=${skip}`);
+    const response = await fetch(`${API_BASE_URL}/farmers?limit=${limit}&skip=${skip}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
     const result = await response.json();
     
     if (!response.ok) {
@@ -114,7 +151,11 @@ export const getAllFarmers = async (limit: number = 50, skip: number = 0): Promi
 // Get farmer by ID
 export const getFarmerById = async (farmerId: string): Promise<AdminResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/farmers/${farmerId}`);
+    const response = await fetch(`${API_BASE_URL}/farmers/${farmerId}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
     const result = await response.json();
     
     if (!response.ok) {
@@ -135,6 +176,7 @@ export const updateFarmer = async (farmerId: string, updateData: Partial<FarmerD
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(updateData),
     });
@@ -157,6 +199,9 @@ export const deleteFarmer = async (farmerId: string): Promise<AdminResponse> => 
   try {
     const response = await fetch(`${API_BASE_URL}/farmers/${farmerId}`, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
     });
 
     const result = await response.json();
@@ -178,7 +223,11 @@ export const getAdminStats = async (): Promise<{
   data: AdminStats;
 }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stats`);
+    const response = await fetch(`${API_BASE_URL}/stats`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
     const result = await response.json();
     
     if (!response.ok) {
@@ -203,6 +252,7 @@ export const updateAdminCredentials = async (adminId: string, credentials: {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         adminId,

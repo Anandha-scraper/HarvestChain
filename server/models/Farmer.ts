@@ -71,7 +71,7 @@ farmerSchema.pre('save', function(next) {
 
 // Indexes are automatically created by unique: true constraints
 
-// Create the model
-const Farmer = mongoose.model<IFarmer>('Farmer', farmerSchema);
+// Create the model (explicit collection name 'farmers')
+const Farmer = mongoose.model<IFarmer>('Farmer', farmerSchema, 'farmers');
 
 export default Farmer;

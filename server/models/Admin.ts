@@ -55,7 +55,7 @@ adminSchema.pre('save', function(next) {
   next();
 });
 
-// Create the model
-const Admin = mongoose.model<IAdmin>('Admin', adminSchema);
+// Create the model (explicit collection name 'admin')
+const Admin = mongoose.model<IAdmin>('Admin', adminSchema, 'admin');
 
 export default Admin;

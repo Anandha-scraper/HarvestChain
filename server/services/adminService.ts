@@ -42,6 +42,22 @@ export const createMasterAdmin = async (): Promise<IAdmin | null> => {
   }
 };
 
+// Create a master admin with custom credentials (one-time setup path)
+export const createMasterAdminWithCredentials = async (username: string, password: string): Promise<IAdmin> => {
+  try {
+    const existingMaster = await Admin.findOne({ role: 'master' });
+    if (existingMaster) {
+      throw new Error('Master admin already exists');
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const masterAdmin = new Admin({ username, password: hashed, role: 'master', isActive: true });
+    return await masterAdmin.save();
+  } catch (error: any) {
+    console.error('Error creating master admin with credentials:', error);
+    throw new Error(error.message || 'Failed to create master admin with credentials');
+  }
+};
+
 // Verify admin login
 export const verifyAdminLogin = async (credentials: LoginCredentials): Promise<IAdmin | null> => {
   try {

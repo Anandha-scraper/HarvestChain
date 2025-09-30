@@ -7,8 +7,12 @@ import {
   updateFarmerById,
   getAdminStats,
   createMasterAdmin,
+  createMasterAdminWithCredentials,
   updateAdminCredentials
 } from '../services/adminService';
+import { SETUP_SECRET } from '../config/env';
+import { initializeDatabase } from '../services/initService';
+import { authMiddleware, signAuthToken } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -26,6 +30,42 @@ router.post('/init-master', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to initialize master admin'
+    });
+  }
+});
+
+// One-time secure setup: create master admin with provided credentials
+router.post('/init-master/custom', async (req, res) => {
+  try {
+    const { setupSecret, username, password } = req.body;
+    if (!setupSecret || setupSecret !== SETUP_SECRET) {
+      return res.status(401).json({ success: false, message: 'Unauthorized setup' });
+    }
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+    const admin = await createMasterAdminWithCredentials(username, password);
+    res.json({ success: true, message: 'Master admin created', data: { id: admin._id, username: admin.username } });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to create master admin' });
+  }
+});
+
+// Initialize database and ensure collections exist
+router.post('/init-db', async (req, res) => {
+  try {
+    const createMaster = Boolean(req.body?.createMaster);
+    const result = await initializeDatabase({ createMaster });
+    res.json({
+      success: true,
+      message: 'Database initialized',
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Error initializing database:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to initialize database'
     });
   }
 });
@@ -51,6 +91,7 @@ router.post('/login', async (req, res) => {
       });
     }
     
+    const token = signAuthToken({ id: String(admin._id), role: admin.role });
     res.json({
       success: true,
       message: 'Login successful',
@@ -58,7 +99,8 @@ router.post('/login', async (req, res) => {
         id: admin._id,
         username: admin.username,
         role: admin.role,
-        lastLogin: admin.lastLogin
+        lastLogin: admin.lastLogin,
+        token
       }
     });
   } catch (error: any) {
@@ -69,6 +111,9 @@ router.post('/login', async (req, res) => {
     });
   }
 });
+
+// Protect routes below this line
+router.use(authMiddleware);
 
 // Get all farmers (with pagination)
 router.get('/farmers', async (req, res) => {
