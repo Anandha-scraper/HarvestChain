@@ -116,7 +116,8 @@ const adminSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true, versionKey: false });
 
-const Admin = mongoose.model('Admin', adminSchema);
+// Use explicit collection name 'admin' to match existing Atlas data
+const Admin = mongoose.model('Admin', adminSchema, 'admin');
 
 // Farmer routes
 app.post('/api/farmers/login', async (req, res) => {
